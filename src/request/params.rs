@@ -1,7 +1,7 @@
 //! URL params.
 
-use hyper;
 use error;
+use hyper;
 
 /// Params definition
 pub struct Params<'a, P: Parser = StdParser> {
@@ -14,11 +14,9 @@ pub struct Params<'a, P: Parser = StdParser> {
 impl<'a> Into<Params<'a>> for &'a str {
     fn into(self) -> Params<'a> {
         match self.find('{') {
-            None => {
-                Params {
-                    parser: StdParser::default(),
-                    prefix: self,
-                }
+            None => Params {
+                parser: StdParser::default(),
+                prefix: self,
             },
             Some(pos) => {
                 let (prefix, params) = self.split_at(pos);
@@ -53,7 +51,7 @@ pub enum Error {
         got: String,
         /// Expected
         expected: String,
-    }
+    },
 }
 
 impl From<Error> for error::Error {
@@ -65,14 +63,15 @@ impl From<Error> for error::Error {
             ),
             Error::InvalidType { param, path, error } => error::Error::bad_request(
                 format!("Error while parsing parameter {:?} from {:?}", param, path),
-                error
+                error,
             ),
-            Error::NotFound => error::Error::not_found(
-                "The resource exists, but expects a parameter."
-            ),
-            Error::InvalidSegment { got, expected } => error::Error::not_found(
-                format!("The resource exists, but the path is invalid. Got {:?}, expected {:?}", got, expected)
-            ),
+            Error::NotFound => {
+                error::Error::not_found("The resource exists, but expects a parameter.")
+            }
+            Error::InvalidSegment { got, expected } => error::Error::not_found(format!(
+                "The resource exists, but the path is invalid. Got {:?}, expected {:?}",
+                got, expected
+            )),
         }
     }
 }
@@ -108,7 +107,7 @@ impl StdParser {
         while let Some(param) = it.next() {
             let len = param.len();
             if len > 0 && &param[0..1] == "{" && &param[len - 1..] == "}" {
-                let name = &param[1 .. len-1];
+                let name = &param[1..len - 1];
                 params.push((pos, name.to_owned()));
             } else {
                 segments.push((pos, param.to_owned()));
@@ -127,7 +126,12 @@ impl Parser for StdParser {
     type Params = DynamicParams;
 
     fn expected_params(&self) -> (usize, String) {
-        (self.expected, self.params.iter().fold(String::new(), |acc, param| acc + "/{" + &param.1 + "}"))
+        (
+            self.expected,
+            self.params
+                .iter()
+                .fold(String::new(), |acc, param| acc + "/{" + &param.1 + "}"),
+        )
     }
 
     fn parse(&self, uri: &hyper::Uri, skip: usize) -> Result<Self::Params, Error> {
@@ -135,11 +139,7 @@ impl Parser for StdParser {
         if self.expected == 0 && !path.is_empty() {
             Err(Error::NotFound)
         } else {
-            DynamicParams::validate(
-                self.params.clone(),
-                self.segments.clone(),
-                path.into(),
-            )
+            DynamicParams::validate(self.params.clone(), self.segments.clone(), path.into())
         }
     }
 }
@@ -152,7 +152,11 @@ pub struct DynamicParams {
 
 impl DynamicParams {
     /// Create new dynamic params and validate segment positions.
-    pub fn validate(params: Vec<(usize, String)>, segments: Vec<(usize, String)>, path: String) -> Result<Self, Error> {
+    pub fn validate(
+        params: Vec<(usize, String)>,
+        segments: Vec<(usize, String)>,
+        path: String,
+    ) -> Result<Self, Error> {
         {
             let mut it = path.split('/');
             let mut current_pos = 0;
@@ -166,20 +170,19 @@ impl DynamicParams {
                 current_pos += 1;
                 // validate
                 match it.next() {
-                    Some(seg) if seg == &segment => {},
-                    Some(seg) => return Err(Error::InvalidSegment {
-                        expected: segment,
-                        got: seg.into(),
-                    }),
+                    Some(seg) if seg == &segment => {}
+                    Some(seg) => {
+                        return Err(Error::InvalidSegment {
+                            expected: segment,
+                            got: seg.into(),
+                        })
+                    }
                     None => return Err(Error::NotFound),
                 }
             }
         }
 
-        Ok(DynamicParams {
-            params,
-            path,
-        })
+        Ok(DynamicParams { params, path })
     }
 
     fn find(&self, name: &str) -> Result<usize, Error> {
@@ -199,7 +202,8 @@ impl DynamicParams {
     }
 
     /// Retrieve a value of a parameter by given name.
-    pub fn get<T>(&self, name: &str) -> Result<T, Error> where
+    pub fn get<T>(&self, name: &str) -> Result<T, Error>
+    where
         T: ::std::str::FromStr,
         T::Err: ::std::fmt::Debug,
     {

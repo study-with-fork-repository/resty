@@ -1,6 +1,6 @@
-use std::mem;
-use std::fmt;
 use arrayvec::ArrayVec;
+use std::fmt;
+use std::mem;
 
 enum Node<T> {
     Empty,
@@ -18,10 +18,15 @@ impl<T: fmt::Debug> fmt::Debug for Tree<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         writeln!(fmt, "Tree:")?;
         for (prefix, item) in self.iter() {
-            writeln!(fmt, "{} -> {:?}", match ::std::str::from_utf8(&prefix) {
-                Ok(s) => format!("{}", s),
-                Err(_) => format!("{:?}", prefix),
-            }, item)?;
+            writeln!(
+                fmt,
+                "{} -> {:?}",
+                match ::std::str::from_utf8(&prefix) {
+                    Ok(s) => format!("{}", s),
+                    Err(_) => format!("{:?}", prefix),
+                },
+                item
+            )?;
         }
         Ok(())
     }
@@ -52,7 +57,7 @@ fn merge_nodes<T>(me: Node<T>, other: Node<T>) -> Node<T> {
         (Node::Tree(a, mut next), Node::Tree(b, mut next2)) => {
             merge_trees(&mut next, &mut next2);
             Node::Tree(b.or(a), next)
-        },
+        }
     }
 }
 
@@ -98,7 +103,7 @@ impl<T> Tree<T> {
         loop {
             let is_last = pos == bytes.len() - 1;
             let b = bytes[pos] as usize;
-            let mut current = unsafe { &mut *next };
+            let current = unsafe { &mut *next };
             let old = mem::replace(&mut current[b], Node::Empty);
             current[b] = match old {
                 Node::Empty => Node::Tree(None, Box::new(Tree::new())),
@@ -129,7 +134,7 @@ impl<T> Tree<T> {
         loop {
             let is_last = pos == len - 1;
             let b = bytes[pos] as usize;
-            let mut current = unsafe { &mut *next };
+            let current = unsafe { &mut *next };
             let old = mem::replace(&mut current[b], Node::Empty);
             if is_last {
                 let (new, old) = match old {
@@ -151,7 +156,7 @@ impl<T> Tree<T> {
                 next = &mut tree.routes as *mut [Node<T>; SIZE];
                 pos += 1;
             } else {
-                return None
+                return None;
             }
         }
     }
@@ -212,7 +217,7 @@ impl<T> Tree<T> {
                         best_result = Some((pos + 1, top_level));
                     }
                     current = &tree.routes
-                },
+                }
             }
         }
 
@@ -242,7 +247,9 @@ impl<'a, T: 'a> Iterator for TreeIterator<'a, T> {
             let (display, next) = match tree.routes[next_pos] {
                 Node::Empty => (None, None),
                 Node::Data(ref t) => (Some((current_prefix, t)), None),
-                Node::Tree(ref d, ref tree) => (d.as_ref().map(|t| (current_prefix, t)), Some(tree)),
+                Node::Tree(ref d, ref tree) => {
+                    (d.as_ref().map(|t| (current_prefix, t)), Some(tree))
+                }
             };
 
             if next_pos + 1 < SIZE {
@@ -285,7 +292,9 @@ impl<'a, T: 'a> Iterator for TreeIteratorMut<'a, T> {
             let (display, next) = match unsafe { &mut *tree }.routes[next_pos] {
                 Node::Empty => (None, None),
                 Node::Data(ref mut t) => (Some((current_prefix, t)), None),
-                Node::Tree(ref mut d, ref mut tree) => (d.as_mut().map(|t| (current_prefix, t)), Some(tree)),
+                Node::Tree(ref mut d, ref mut tree) => {
+                    (d.as_mut().map(|t| (current_prefix, t)), Some(tree))
+                }
             };
 
             if next_pos + 1 < SIZE {
@@ -304,7 +313,6 @@ impl<'a, T: 'a> Iterator for TreeIteratorMut<'a, T> {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -369,5 +377,4 @@ z -> 6
 "#
         );
     }
-
 }

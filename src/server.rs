@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use hyper;
 use futures::future;
+use hyper;
+use std::sync::Arc;
 
 use error::Error;
-use router::{Routes, HandlerResult};
+use router::{HandlerResult, Routes};
 
 #[derive(Clone)]
 pub struct Server {
@@ -36,21 +36,17 @@ impl hyper::server::Service for Server {
         let path = req.uri().path().to_owned();
         let method = req.method().into();
         match self.routes.find(path) {
-            Some((prefix, ref endpoint)) => {
-                endpoint.handle(method, req, prefix)
-            },
-            None => Box::new(future::ok(Error::not_found(
-                "Requested resource was not found."
-            ).into())),
+            Some((prefix, ref endpoint)) => endpoint.handle(method, req, prefix),
+            None => Box::new(future::ok(
+                Error::not_found("Requested resource was not found.").into(),
+            )),
         }
     }
 }
 
 /// Resty Server Handle
 #[derive(Debug)]
-pub struct Listening {
-
-}
+pub struct Listening {}
 
 impl Listening {
     /// Block the thread waiting for the server to finish.

@@ -26,13 +26,10 @@ impl<T: serde::Serialize> From<T> for Response {
                     .with_header(header::ContentType::json())
                     .with_body(serialized);
                 Response { response }
-            },
+            }
             Err(error) => {
-                Error::internal(
-                    "Unable to serialize response.",
-                    format!("{:?}", error),
-                    ).into()
-            },
+                Error::internal("Unable to serialize response.", format!("{:?}", error)).into()
+            }
         }
     }
 }

@@ -35,7 +35,8 @@ impl Into<hyper::Response> for Error {
             code: self.code.as_u16(),
             message: self.message,
             details: self.details,
-        }).expect("The serialization is infallible; qed");
+        })
+        .expect("The serialization is infallible; qed");
 
         hyper::Response::new()
             .with_status(self.code)

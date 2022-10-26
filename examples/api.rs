@@ -4,17 +4,27 @@ extern crate resty;
 #[macro_use]
 extern crate serde_derive;
 
-use std::sync::RwLock;
 use futures::Future;
+use std::sync::RwLock;
 
 fn main() {
     let mut v1 = resty::Router::new();
-    v1.add("/products", Products {
-        products: RwLock::new(vec![
-            Product { id: 0, name: "Bread".into() },
-            Product { id: 1, name: "Butter".into() },
-        ]),
-    }.into());
+    v1.add(
+        "/products",
+        Products {
+            products: RwLock::new(vec![
+                Product {
+                    id: 0,
+                    name: "Bread".into(),
+                },
+                Product {
+                    id: 1,
+                    name: "Butter".into(),
+                },
+            ]),
+        }
+        .into(),
+    );
 
     let mut server = resty::Router::new();
     // Compose routers to form the API
@@ -77,19 +87,16 @@ impl Products {
 impl Into<resty::Router> for Products {
     fn into(self) -> resty::Router {
         let self_ = ::std::sync::Arc::new(self);
-        let mut router = resty::Router::with_config(
-            resty::Config::new().handle_head(false).extra_headers({
+        let mut router =
+            resty::Router::with_config(resty::Config::new().handle_head(false).extra_headers({
                 let mut h = resty::Headers::new();
                 h.set_raw("X-Server", "resty");
                 h
-            })
-        );
+            }));
 
         // no params
         let a = self_.clone();
-        router.get("/", move |_request| {
-            a.list()
-        });
+        router.get("/", move |_request| a.list());
 
         // dynamic params
         let a = self_.clone();
@@ -107,18 +114,20 @@ impl Into<resty::Router> for Products {
         router.put(url!(/{id:usize}), move |request| {
             let a = a.clone();
             let id = request.params().id;
-            request.json().map_err(Into::into).and_then(move |product| {
-                a.update(id, product)
-            })
+            request
+                .json()
+                .map_err(Into::into)
+                .and_then(move |product| a.update(id, product))
         });
 
         // post request
-        let a = self_.clone();
+        let a = self_;
         router.post("/", move |request| {
             let a = a.clone();
-            request.json().map_err(Into::into).and_then(move |product| {
-                a.add(product)
-            })
+            request
+                .json()
+                .map_err(Into::into)
+                .and_then(move |product| a.add(product))
         });
 
         router

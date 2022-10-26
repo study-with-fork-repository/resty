@@ -1,17 +1,16 @@
-use std::fmt;
-use hyper;
 use futures::{future, Future, IntoFuture};
+use hyper;
+use std::fmt;
 
 use config::{Config, MaterializedConfig};
 use error::Error;
+use prefix_tree;
 use request::{params, Params, Request};
 use response::Response;
-use server::{Server, Listening};
-use prefix_tree;
+use server::{Listening, Server};
 
-
-pub type HandlerResult = Box<Future<Item = hyper::Response, Error = hyper::Error>>;
-pub type BoxHandler = Box<Fn(hyper::Request, usize) -> HandlerResult + Sync + Send>;
+pub type HandlerResult = Box<dyn Future<Item = hyper::Response, Error = hyper::Error>>;
+pub type BoxHandler = Box<dyn Fn(hyper::Request, usize) -> HandlerResult + Sync + Send>;
 pub type Routes = prefix_tree::Tree<Endpoint>;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -29,15 +28,19 @@ impl fmt::Display for Method {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         use self::Method::*;
 
-        write!(fmt, "{}", match *self {
-            Head => "HEAD",
-            Get => "GET",
-            Post => "POST",
-            Delete => "DELETE",
-            Put => "PUT",
-            Patch => "PATCH",
-            Options => "OPTIONS",
-        })
+        write!(
+            fmt,
+            "{}",
+            match *self {
+                Head => "HEAD",
+                Get => "GET",
+                Post => "POST",
+                Delete => "DELETE",
+                Put => "PUT",
+                Patch => "PATCH",
+                Options => "OPTIONS",
+            }
+        )
     }
 }
 
@@ -81,7 +84,7 @@ pub enum EndpointHandler {
         method: Method,
         params: (usize, String),
         handler: BoxHandler,
-    }
+    },
 }
 
 impl fmt::Debug for EndpointHandler {
@@ -107,12 +110,21 @@ impl fmt::Display for Endpoint {
             match self.handlers[i] {
                 EndpointHandler::None if i == 0 => {
                     return writeln!(fmt, "  ?empty handler?");
-                },
+                }
                 EndpointHandler::None => {
                     return Ok(());
-                },
-                EndpointHandler::Some { ref method, ref params, .. } => {
-                    writeln!(fmt, "  {} {}", method, if params.0 == 0 { "/" } else { &params.1 })?;
+                }
+                EndpointHandler::Some {
+                    ref method,
+                    ref params,
+                    ..
+                } => {
+                    writeln!(
+                        fmt,
+                        "  {} {}",
+                        method,
+                        if params.0 == 0 { "/" } else { &params.1 }
+                    )?;
                 }
             }
         }
@@ -144,7 +156,7 @@ impl Endpoint {
         for i in 0..MAX_NUMBER_OF_ENDPOINTS {
             match self.handlers[i] {
                 EndpointHandler::Some { .. } => continue,
-                EndpointHandler::None => {},
+                EndpointHandler::None => {}
             }
             self.handlers[i] = EndpointHandler::Some {
                 method,
@@ -166,25 +178,30 @@ impl Endpoint {
             Box::new(self.handle_internal(m, req, prefix))
         } else {
             let extra_headers = self.config.extra_headers.clone();
-            Box::new(self.handle_internal(m, req, prefix).map(move |mut response| {
-                {
-                    let mut headers = response.headers_mut();
-                    for (name, val) in extra_headers {
-                        // Don't override headers that were provided with the response.
-                        if headers.get_raw(&name).is_none() {
-                            headers.set_raw(name, val);
+            Box::new(
+                self.handle_internal(m, req, prefix)
+                    .map(move |mut response| {
+                        {
+                            let headers = response.headers_mut();
+                            for (name, val) in extra_headers {
+                                // Don't override headers that were provided with the response.
+                                if headers.get_raw(&name).is_none() {
+                                    headers.set_raw(name, val);
+                                }
+                            }
                         }
-                    }
-                }
-                response
-            }))
+                        response
+                    }),
+            )
         }
     }
 
-    fn handle_internal(&self, m: Method, req: hyper::Request, prefix: usize) -> future::Either<
-        HandlerResult,
-        future::FutureResult<hyper::Response, hyper::Error>,
-    > {
+    fn handle_internal(
+        &self,
+        m: Method,
+        req: hyper::Request,
+        prefix: usize,
+    ) -> future::Either<HandlerResult, future::FutureResult<hyper::Response, hyper::Error>> {
         use self::future::Either;
 
         let expected = {
@@ -200,7 +217,11 @@ impl Endpoint {
         for i in 0..MAX_NUMBER_OF_ENDPOINTS {
             match self.handlers[i] {
                 EndpointHandler::None => break,
-                EndpointHandler::Some { ref method, ref params, ref handler } => {
+                EndpointHandler::Some {
+                    ref method,
+                    ref params,
+                    ref handler,
+                } => {
                     if method != &m {
                         continue;
                     }
@@ -212,27 +233,28 @@ impl Endpoint {
                     }
 
                     return Either::A(handler(req, prefix));
-                },
+                }
             }
         }
 
         match (m, method_found) {
-            (_, true) => {
-                Either::B(future::ok(Error::not_found("Unable to find a handler.").into()))
-            },
-            (Method::Head, false) if self.config.handle_head => {
-                Either::A(Box::new(self.handle_internal(Method::Get, req, prefix).map(|mut response| {
-                    response.set_body(vec![]);
-                    response
-                })))
-            },
+            (_, true) => Either::B(future::ok(
+                Error::not_found("Unable to find a handler.").into(),
+            )),
+            (Method::Head, false) if self.config.handle_head => Either::A(Box::new(
+                self.handle_internal(Method::Get, req, prefix)
+                    .map(|mut response| {
+                        response.set_body(vec![]);
+                        response
+                    }),
+            )),
             (Method::Options, false) if self.config.handle_options => {
                 let allowed_methods = self.allowed_methods.clone();
                 let res = hyper::Response::new()
                     .with_status(hyper::StatusCode::Ok)
                     .with_header(hyper::header::Allow(allowed_methods));
                 Either::B(future::ok(res))
-            },
+            }
             _ => {
                 let allowed_methods = self.allowed_methods.clone();
                 let allowed_str = {
@@ -248,8 +270,9 @@ impl Endpoint {
 
                 let mut res: hyper::Response = Error::method_not_allowed(
                     format!("Method {} is not allowed.", m),
-                    format!("Allowed methods: {}", allowed_str)
-                ).into();
+                    format!("Allowed methods: {}", allowed_str),
+                )
+                .into();
                 res.headers_mut().set(hyper::header::Allow(allowed_methods));
                 Either::B(future::ok(res))
             }
@@ -305,7 +328,8 @@ impl Router {
     }
 
     /// Declare endpoint.
-    pub fn on<'a, F, I, R, E, D, P>(&mut self, method: Method, params: D, fun: F) where
+    pub fn on<'a, F, I, R, E, D, P>(&mut self, method: Method, params: D, fun: F)
+    where
         F: Fn(Request<P::Params>) -> I + Sync + Send + 'static,
         I: IntoFuture<Item = R, Error = E>,
         R: Into<Response>,
@@ -316,27 +340,41 @@ impl Router {
     {
         let params = params.into();
         let parser = params.parser;
-        let mut endpoint = self.routes.remove(params.prefix).unwrap_or_else(|| Endpoint::with_config(self.config.clone()));
-        let added = endpoint.add(method, parser.expected_params(), Box::new(move |request, prefix_len| {
-            let params = match parser.parse(request.uri(), prefix_len) {
-                Ok(params) => params,
-                Err(err) => return Box::new(future::ok(Error::from(err).into())),
-            };
-            let req = Request::new(request, params);
-            Box::new(fun(req).into_future().then(|result| {
-                future::ok(match result {
-                    Ok(res) => res.into(),
-                    Err(err) => err.into().into(),
-                }.into())
-            }))
-        }));
-        assert!(added, "The server does not support more than {} handlers for single prefix.", MAX_NUMBER_OF_ENDPOINTS);
+        let mut endpoint = self
+            .routes
+            .remove(params.prefix)
+            .unwrap_or_else(|| Endpoint::with_config(self.config.clone()));
+        let added = endpoint.add(
+            method,
+            parser.expected_params(),
+            Box::new(move |request, prefix_len| {
+                let params = match parser.parse(request.uri(), prefix_len) {
+                    Ok(params) => params,
+                    Err(err) => return Box::new(future::ok(Error::from(err).into())),
+                };
+                let req = Request::new(request, params);
+                Box::new(fun(req).into_future().then(|result| {
+                    future::ok(
+                        match result {
+                            Ok(res) => res.into(),
+                            Err(err) => err.into().into(),
+                        }
+                        .into(),
+                    )
+                }))
+            }),
+        );
+        assert!(
+            added,
+            "The server does not support more than {} handlers for single prefix.",
+            MAX_NUMBER_OF_ENDPOINTS
+        );
         self.routes.insert(params.prefix, endpoint);
     }
 
-
     /// Declare GET endpoint.
-    pub fn get<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F) where
+    pub fn get<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F)
+    where
         F: Fn(Request<P::Params>) -> I + Sync + Send + 'static,
         I: IntoFuture<Item = R, Error = E>,
         R: Into<Response>,
@@ -349,7 +387,8 @@ impl Router {
     }
 
     /// Declare POST endpoint.
-    pub fn post<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F) where
+    pub fn post<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F)
+    where
         F: Fn(Request<P::Params>) -> I + Sync + Send + 'static,
         I: IntoFuture<Item = R, Error = E>,
         R: Into<Response>,
@@ -362,7 +401,8 @@ impl Router {
     }
 
     /// Declare PUT endpoint.
-    pub fn put<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F) where
+    pub fn put<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F)
+    where
         F: Fn(Request<P::Params>) -> I + Sync + Send + 'static,
         I: IntoFuture<Item = R, Error = E>,
         R: Into<Response>,
@@ -375,7 +415,8 @@ impl Router {
     }
 
     /// Declare PATCH endpoint.
-    pub fn patch<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F) where
+    pub fn patch<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F)
+    where
         F: Fn(Request<P::Params>) -> I + Sync + Send + 'static,
         I: IntoFuture<Item = R, Error = E>,
         R: Into<Response>,
@@ -388,7 +429,8 @@ impl Router {
     }
 
     /// Declare DELETE endpoint.
-    pub fn delete<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F) where
+    pub fn delete<'a, F, I, R, E, D, P>(&mut self, prefix: D, fun: F)
+    where
         F: Fn(Request<P::Params>) -> I + Sync + Send + 'static,
         I: IntoFuture<Item = R, Error = E>,
         R: Into<Response>,

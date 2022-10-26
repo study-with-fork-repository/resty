@@ -13,9 +13,7 @@ struct Call {
 fn main() {
     let mut server = resty::Router::new();
 
-    server.get("/", |_| {
-        Ok("Hello World!") as Result<_, resty::Error>
-    });
+    server.get("/", |_| Ok("Hello World!") as Result<_, resty::Error>);
 
     server.post("/", |request| {
         // Deserialize payload

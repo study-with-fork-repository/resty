@@ -43,9 +43,9 @@ impl Config {
             let mut extra_headers = Vec::new();
             for header in headers.iter() {
                 extra_headers.push((
-                        header.name().to_owned(),
-                        header.raw().iter().map(|x| x.to_vec()).collect(),
-                        ));
+                    header.name().to_owned(),
+                    header.raw().iter().map(|x| x.to_vec()).collect(),
+                ));
             }
             extra_headers
         });

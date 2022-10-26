@@ -1,7 +1,7 @@
 //! Resty request wrapper.
 
+use futures::{self, Future, Stream};
 use hyper;
-use futures::{self, Stream, Future};
 use serde;
 use serde_json;
 
@@ -23,10 +23,7 @@ pub enum Error {
 
 impl From<Error> for error::Error {
     fn from(err: Error) -> Self {
-        error::Error::bad_request(
-            "Unable to parse request as JSON.",
-            format!("{:?}", err),
-        )
+        error::Error::bad_request("Unable to parse request as JSON.", format!("{:?}", err))
     }
 }
 
@@ -40,7 +37,10 @@ pub struct Request<P = ()> {
 impl<P> Request<P> {
     /// Creates new instance of request
     pub fn new(request: hyper::Request, params: P) -> Self {
-        Request { request, params: Some(params) }
+        Request {
+            request,
+            params: Some(params),
+        }
     }
 
     /// Returns params reference.
@@ -55,14 +55,17 @@ impl<P> Request<P> {
 
     /// Read the body of this request and deserialize it from JSON.
     /// Returns error in case the request body cannot be read or deserialization fails.
-    pub fn json<T>(self) -> JsonResult<T> where
+    pub fn json<T>(self) -> JsonResult<T>
+    where
         T: for<'a> serde::de::Deserialize<'a>,
     {
         self.request.body().concat2().then(deserialize)
     }
 }
 
-fn deserialize<T: for<'a> serde::de::Deserialize<'a>>(chunk: Result<hyper::Chunk, hyper::Error>) -> Result<T, Error> {
+fn deserialize<T: for<'a> serde::de::Deserialize<'a>>(
+    chunk: Result<hyper::Chunk, hyper::Error>,
+) -> Result<T, Error> {
     match chunk {
         Ok(chunk) => match serde_json::from_slice(&*chunk) {
             Ok(res) => Ok(res),

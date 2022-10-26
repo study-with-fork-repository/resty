@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+#![warn(clippy::missing_docs)]
 
 //! Resty - a simple JSON REST API server.
 
@@ -21,12 +21,11 @@ mod server;
 
 pub use config::Config;
 pub use error::Error;
+pub use hyper::{Headers, StatusCode, Uri};
 pub use request::Request;
 pub use response::Response;
 pub use router::Router;
 pub use server::Listening;
-pub use hyper::{Uri, StatusCode, Headers};
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}
