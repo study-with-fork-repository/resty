@@ -11,15 +11,15 @@ pub struct Params<'a, P: Parser = StdParser> {
     pub prefix: &'a str,
 }
 
-impl<'a> Into<Params<'a>> for &'a str {
-    fn into(self) -> Params<'a> {
-        match self.find('{') {
+impl<'a> From<&'a str> for Params<'a> {
+    fn from(text: &'a str) -> Self {
+        match text.find('{') {
             None => Params {
                 parser: StdParser::default(),
-                prefix: self,
+                prefix: text,
             },
             Some(pos) => {
-                let (prefix, params) = self.split_at(pos);
+                let (prefix, params) = text.split_at(pos);
                 Params {
                     parser: StdParser::params(params),
                     prefix,
@@ -30,7 +30,7 @@ impl<'a> Into<Params<'a>> for &'a str {
 }
 
 /// Error while parsing URL for parameters.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     /// A requested dynamic paremeter name was not declared.
     UnknownParameter(String),
@@ -99,12 +99,12 @@ pub struct StdParser {
 impl StdParser {
     /// Create new standard params and parse given string for params patterns.
     pub fn params(params: &str) -> Self {
-        let mut it = params.split('/');
+        let it = params.split('/');
         let mut params = vec![];
         let mut segments = vec![];
         let mut pos = 0;
 
-        while let Some(param) = it.next() {
+        for param in it {
             let len = param.len();
             if len > 0 && &param[0..1] == "{" && &param[len - 1..] == "}" {
                 let name = &param[1..len - 1];
@@ -170,7 +170,7 @@ impl DynamicParams {
                 current_pos += 1;
                 // validate
                 match it.next() {
-                    Some(seg) if seg == &segment => {}
+                    Some(seg) if seg == segment => {}
                     Some(seg) => {
                         return Err(Error::InvalidSegment {
                             expected: segment,
@@ -198,7 +198,7 @@ impl DynamicParams {
     /// Retrieve a string value of a parameter by given name.
     pub fn get_str(&self, name: &str) -> Result<&str, Error> {
         let pos = self.find(name)?;
-        self.path.split('/').nth(pos).ok_or_else(|| Error::NotFound)
+        self.path.split('/').nth(pos).ok_or(Error::NotFound)
     }
 
     /// Retrieve a value of a parameter by given name.

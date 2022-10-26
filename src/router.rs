@@ -304,11 +304,13 @@ impl Router {
     /// Pretty-prints the endpoints handled by given router.
     pub fn routes(&self) -> String {
         let mut s = String::new();
-        let mut it = self.routes.iter();
-        while let Some((prefix, route)) = it.next() {
+        let it = self.routes.iter();
+
+        for (prefix, route) in it {
             let prefix = ::std::str::from_utf8(&prefix).expect("Storing only strings in tree; qed");
             s.push_str(&format!("{}\n{}\n", prefix, route));
         }
+
         s
     }
 

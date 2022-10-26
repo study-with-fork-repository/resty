@@ -1,5 +1,3 @@
-#![warn(clippy::missing_docs)]
-
 //! Resty - a simple JSON REST API server.
 
 extern crate arrayvec;

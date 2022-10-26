@@ -10,9 +10,9 @@ pub struct Response {
     pub(crate) response: hyper::Response,
 }
 
-impl Into<hyper::Response> for Response {
-    fn into(self) -> hyper::Response {
-        self.response
+impl From<Response> for hyper::Response {
+    fn from(val: Response) -> Self {
+        val.response
     }
 }
 

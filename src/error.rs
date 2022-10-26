@@ -22,24 +22,25 @@ struct Serializable {
     pub details: String,
 }
 
-impl Into<Response> for Error {
-    fn into(self) -> Response {
-        let response = self.into();
+impl From<Error> for Response {
+    fn from(error: Error) -> Self {
+        let response = error.into();
+
         Response { response }
     }
 }
 
-impl Into<hyper::Response> for Error {
-    fn into(self) -> hyper::Response {
+impl From<Error> for hyper::Response {
+    fn from(error: Error) -> Self {
         let serialized = serde_json::to_vec(&Serializable {
-            code: self.code.as_u16(),
-            message: self.message,
-            details: self.details,
+            code: error.code.as_u16(),
+            message: error.message,
+            details: error.details,
         })
         .expect("The serialization is infallible; qed");
 
         hyper::Response::new()
-            .with_status(self.code)
+            .with_status(error.code)
             .with_header(header::ContentType::json())
             .with_body(serialized)
     }

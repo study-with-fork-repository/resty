@@ -65,8 +65,8 @@ impl Config {
         let base = MaterializedConfig::default();
 
         MaterializedConfig {
-            handle_head: self.handle_head.clone().unwrap_or(base.handle_head),
-            handle_options: self.handle_options.clone().unwrap_or(base.handle_options),
+            handle_head: self.handle_head.unwrap_or(base.handle_head),
+            handle_options: self.handle_options.unwrap_or(base.handle_options),
             extra_headers: self.extra_headers.clone().unwrap_or(base.extra_headers),
         }
     }

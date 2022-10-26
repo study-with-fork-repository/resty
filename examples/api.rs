@@ -5,7 +5,7 @@ extern crate resty;
 extern crate serde_derive;
 
 use futures::Future;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 fn main() {
     let mut v1 = resty::Router::new();
@@ -84,9 +84,9 @@ impl Products {
 }
 
 // TODO [ToDr] Derive this implementation
-impl Into<resty::Router> for Products {
-    fn into(self) -> resty::Router {
-        let self_ = ::std::sync::Arc::new(self);
+impl From<Products> for resty::Router {
+    fn from(products: Products) -> Self {
+        let products = Arc::new(products);
         let mut router =
             resty::Router::with_config(resty::Config::new().handle_head(false).extra_headers({
                 let mut h = resty::Headers::new();
@@ -95,39 +95,39 @@ impl Into<resty::Router> for Products {
             }));
 
         // no params
-        let a = self_.clone();
-        router.get("/", move |_request| a.list());
+        let products_clone = Arc::clone(&products);
+        router.get("/", move |_request| products_clone.list());
 
         // dynamic params
-        let a = self_.clone();
+        let products_clone = Arc::clone(&products);
         router.get("/{id}", move |request| {
-            a.single(request.params().get("id")?)
+            products_clone.single(request.params().get("id")?)
         });
 
         // static params
-        let a = self_.clone();
+        let products_clone = Arc::clone(&products);
         router.get(url!(/test/{id:usize}), move |request| {
-            a.single(request.params().id)
+            products_clone.single(request.params().id)
         });
 
-        let a = self_.clone();
+        let products_clone = Arc::clone(&products);
         router.put(url!(/{id:usize}), move |request| {
-            let a = a.clone();
+            let products_clone = Arc::clone(&products_clone);
             let id = request.params().id;
             request
                 .json()
                 .map_err(Into::into)
-                .and_then(move |product| a.update(id, product))
+                .and_then(move |product| products_clone.update(id, product))
         });
 
         // post request
-        let a = self_;
+        let products_clone = products;
         router.post("/", move |request| {
-            let a = a.clone();
+            let products_clone = Arc::clone(&products_clone);
             request
                 .json()
                 .map_err(Into::into)
-                .and_then(move |product| a.add(product))
+                .and_then(move |product| products_clone.add(product))
         });
 
         router

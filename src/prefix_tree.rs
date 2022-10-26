@@ -22,7 +22,7 @@ impl<T: fmt::Debug> fmt::Debug for Tree<T> {
                 fmt,
                 "{} -> {:?}",
                 match ::std::str::from_utf8(&prefix) {
-                    Ok(s) => format!("{}", s),
+                    Ok(s) => s.to_string(),
                     Err(_) => format!("{:?}", prefix),
                 },
                 item
@@ -74,9 +74,9 @@ impl<T> Tree<T> {
         Self::default()
     }
 
-    pub fn iter<'a>(&'a self) -> TreeIterator<'a, T> {
+    pub fn iter(&self) -> TreeIterator<'_, T> {
         TreeIterator {
-            stack: vec![(vec![], 0, &self)],
+            stack: vec![(vec![], 0, self)],
         }
     }
 
@@ -221,7 +221,7 @@ impl<T> Tree<T> {
             }
         }
 
-        return best_result;
+        best_result
     }
 }
 

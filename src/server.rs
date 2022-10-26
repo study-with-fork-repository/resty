@@ -36,7 +36,7 @@ impl hyper::server::Service for Server {
         let path = req.uri().path().to_owned();
         let method = req.method().into();
         match self.routes.find(path) {
-            Some((prefix, ref endpoint)) => endpoint.handle(method, req, prefix),
+            Some((prefix, endpoint)) => endpoint.handle(method, req, prefix),
             None => Box::new(future::ok(
                 Error::not_found("Requested resource was not found.").into(),
             )),
